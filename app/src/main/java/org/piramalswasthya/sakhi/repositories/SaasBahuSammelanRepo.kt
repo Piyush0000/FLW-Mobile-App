@@ -17,6 +17,7 @@ import org.piramalswasthya.sakhi.database.room.SyncState
 import org.piramalswasthya.sakhi.database.room.dao.SaasBahuSammelanDao
 import org.piramalswasthya.sakhi.database.shared_preferences.PreferenceDao
 import org.piramalswasthya.sakhi.helpers.getDateFromLong
+import org.piramalswasthya.sakhi.helpers.resolveSyncImageFile
 import org.piramalswasthya.sakhi.model.SaasBahuSammelanCache
 import org.piramalswasthya.sakhi.model.SaasBahuSammelanGetAllResponse
 import org.piramalswasthya.sakhi.network.AmritApiService
@@ -28,7 +29,6 @@ import org.piramalswasthya.sakhi.utils.HelperUtil.copyToTemp
 import org.piramalswasthya.sakhi.utils.HelperUtil.detectExtAndMime
 import org.piramalswasthya.sakhi.utils.HelperUtil.getFileName
 import timber.log.Timber
-import java.io.File
 import java.net.SocketTimeoutException
 import javax.inject.Inject
 import kotlin.collections.forEach
@@ -168,13 +168,16 @@ class SaasBahuSammelanRepo @Inject constructor(
         val parsed = adapter.fromJson(body) ?: return@withContext
         saasBahuDao.clearAll()
         parsed.data?.forEach { item ->
+            val itemId = item.id?.toLong()!!
             val imageBase64List = item.meetingImages ?: emptyList()
-            val imageUriList = imageBase64List.mapNotNull { base64 ->
+            val imageUriList = imageBase64List.mapIndexedNotNull { index, base64 ->
                 try {
                     val base64Data = base64.substringAfter(",", base64)
                     val bytes = Base64.decode(base64Data, Base64.DEFAULT)
                     val (ext, _) = detectExtAndMime(bytes)
-                    val file = File(appContext.cacheDir, "saas_bahu_sammelan${System.currentTimeMillis()}.$ext")
+                    val file = resolveSyncImageFile(
+                        appContext.cacheDir, "saas_bahu_sammelan", itemId, index, ext
+                    )
                     file.outputStream().use { it.write(bytes) }
                     val uri = FileProvider.getUriForFile(
                         appContext,
@@ -189,7 +192,7 @@ class SaasBahuSammelanRepo @Inject constructor(
             }
 
             val entity = SaasBahuSammelanCache(
-                id = item.id?.toLong()!!,
+                id = itemId,
                 date = item.meetingDate,
                 place = item.place,
                 participants = item.participants,

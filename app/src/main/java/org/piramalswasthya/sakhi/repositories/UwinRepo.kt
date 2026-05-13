@@ -17,13 +17,12 @@ import org.piramalswasthya.sakhi.database.room.SyncState
 import org.piramalswasthya.sakhi.database.room.dao.SyncDao
 import org.piramalswasthya.sakhi.database.room.dao.UwinDao
 import org.piramalswasthya.sakhi.database.shared_preferences.PreferenceDao
+import org.piramalswasthya.sakhi.helpers.resolveSyncImageFile
 import org.piramalswasthya.sakhi.model.UwinCache
 import org.piramalswasthya.sakhi.model.UwinGetAllRequest
 import org.piramalswasthya.sakhi.network.AmritApiService
 import retrofit2.Response
 import timber.log.Timber
-import java.io.File
-import java.io.FileOutputStream
 import java.net.SocketTimeoutException
 import javax.inject.Inject
 import android.util.Base64
@@ -214,12 +213,15 @@ class UwinRepo @Inject constructor(
 
 
         val localList = entries.mapNotNull { item ->
-            val imageUriList = item.meetingImages?.mapNotNull { base64 ->
+            val itemId = item.id ?: 0L
+            val imageUriList = item.meetingImages?.mapIndexedNotNull { index, base64 ->
                 try {
                     val base64Data = base64.substringAfter(",", base64)
                     val bytes = Base64.decode(base64Data, Base64.DEFAULT)
                     val (ext, _) = detectExtAndMime(bytes)
-                    val file = File(appContext.cacheDir, "uwin_${System.currentTimeMillis()}.$ext")
+                    val file = resolveSyncImageFile(
+                        appContext.cacheDir, "uwin", itemId, index, ext
+                    )
                     file.outputStream().use { it.write(bytes) }
                     val uri = FileProvider.getUriForFile(
                         appContext,
@@ -237,7 +239,7 @@ class UwinRepo @Inject constructor(
                 0L
             }
             UwinCache(
-                id = item.id ?: 0,
+                id = itemId,
                 sessionDate = sessionDateMillis,
                 place = item.place,
                 participantsCount = item.participants ?: 0,

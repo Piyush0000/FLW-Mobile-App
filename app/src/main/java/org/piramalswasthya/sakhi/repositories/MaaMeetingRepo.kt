@@ -13,7 +13,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.File
+import org.piramalswasthya.sakhi.helpers.resolveSyncImageFile
 import java.util.Locale
 import androidx.core.content.FileProvider
 import javax.inject.Inject
@@ -143,15 +143,15 @@ class MaaMeetingRepo @Inject constructor(
 
         serverList.forEach { item ->
 
-            val imageUriList = (item.meetingImages ?: emptyList()).mapNotNull { base64 ->
+            val itemId = item.id?.toLong()!!
+            val imageUriList = (item.meetingImages ?: emptyList()).mapIndexedNotNull { index, base64 ->
                 try {
                     val base64Data = base64.substringAfter(",", base64)
                     val bytes = Base64.decode(base64Data, Base64.DEFAULT)
                     val (ext, _) = detectExtAndMime(bytes)
 
-                    val file = File(
-                        appContext.cacheDir,
-                        "meeting_${System.currentTimeMillis()}.$ext"
+                    val file = resolveSyncImageFile(
+                        appContext.cacheDir, "meeting", itemId, index, ext
                     )
 
                     file.outputStream().use { it.write(bytes) }
@@ -168,7 +168,7 @@ class MaaMeetingRepo @Inject constructor(
             }
 
             val entity = MaaMeetingEntity(
-                id = item.id?.toLong()!!,
+                id = itemId,
                 meetingDate = convertToLocalDate(item.meetingDate),
                 place = item.place,
                 villageName = item.villageName,
